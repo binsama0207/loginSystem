@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개인 PDF 안전 다운로드 시스템</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+        body {
+            background-color: #f4f6f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 420px;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #333;
+            text-align: center;
+            font-size: 1.4rem;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .toggle-link {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #007bff;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        #message {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+        .error { color: #dc3545; }
+        .success { color: #28a745; }
+        .download-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 12px 20px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 로그인 화면 -->
+    <div id="loginView">
+        <h2>로그인</h2>
+        <div class="form-group">
+            <label>이메일</label>
+            <input type="email" id="loginEmail" placeholder="example@email.com">
+        </div>
+        <div class="form-group">
+            <label>비밀번호</label>
+            <input type="password" id="loginPassword" placeholder="비밀번호">
+        </div>
+        <button onclick="handleLogin()">로그인</button>
+        <div class="toggle-link" onclick="showView('signupView')">처음이신가요? 회원가입하기</div>
+    </div>
+
+    <!-- 회원가입 화면 -->
+    <div id="signupView" class="hidden">
+        <h2>회원가입</h2>
+        <div class="form-group">
+            <label>이름</label>
+            <input type="text" id="signupName" placeholder="예: 홍길동">
+        </div>
+        <div class="form-group">
+            <label>생년월일 (6자리)</label>
+            <input type="text" id="signupBirth" placeholder="예: 950315" maxlength="6">
+        </div>
+        <div class="form-group">
+            <label>이메일</label>
+            <input type="email" id="signupEmail" placeholder="사용할 이메일 입력">
+        </div>
+        <div class="form-group">
+            <label>비밀번호</label>
+            <input type="password" id="signupPassword" placeholder="6자리 이상 비밀번호">
+        </div>
+        <button onclick="handleSignUp()">회원가입 신청</button>
+        <div class="toggle-link" onclick="showView('loginView')">이미 계정이 있으신가요? 로그인하기</div>
+    </div>
+
+    <!-- 내 문서함 화면 -->
+    <div id="userView" class="hidden">
+        <h2>내 문서함</h2>
+        <p style="text-align: center; margin-bottom: 15px;" id="userInfo"></p>
+        <div id="pdfArea" style="text-align: center;"></div>
+        <button onclick="handleLogout()" style="background-color: #6c757d; margin-top: 20px;">로그아웃</button>
+    </div>
+
+    <div id="message"></div>
+</div>
+
+<script>
+    // TODO: Step 2에서 배포한 구글 앱스 스크립트 웹 앱 URL을 입력하세요.
+    const GAS_WEB_APP_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL";
+
+    function showView(viewId) {
+        document.getElementById("loginView").classList.add("hidden");
+        document.getElementById("signupView").classList.add("hidden");
+        document.getElementById("userView").classList.add("hidden");
+        document.getElementById(viewId).classList.remove("hidden");
+        document.getElementById("message").innerText = "";
+    }
+
+    // 회원가입
+    async function handleSignUp() {
+        const name = document.getElementById("signupName").value.trim();
+        const birth = document.getElementById("signupBirth").value.trim();
+        const email = document.getElementById("signupEmail").value.trim();
+        const password = document.getElementById("signupPassword").value;
+        const msg = document.getElementById("message");
+
+        if (!name || !birth || !email || !password) {
+            msg.className = "error";
+            msg.innerText = "모든 필드를 입력해 주세요.";
+            return;
+        }
+
+        msg.className = "";
+        msg.innerText = "회원가입 처리 중...";
+
+        try {
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "signup", name, birth, email, password })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                msg.className = "success";
+                msg.innerText = result.message;
+                setTimeout(() => showView("loginView"), 1500);
+            } else {
+                msg.className = "error";
+                msg.innerText = result.message;
+            }
+        } catch (error) {
+            msg.className = "error";
+            msg.innerText = "요청 중 오류가 발생했습니다.";
+        }
+    }
+
+    // 로그인
+    async function handleLogin() {
+        const email = document.getElementById("loginEmail").value.trim();
+        const password = document.getElementById("loginPassword").value;
+        const msg = document.getElementById("message");
+
+        if (!email || !password) {
+            msg.className = "error";
+            msg.innerText = "이메일과 비밀번호를 입력해 주세요.";
+            return;
+        }
+
+        msg.className = "";
+        msg.innerText = "로그인 중...";
+
+        try {
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "login", email, password })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                localStorage.setItem("userToken", result.token);
+                localStorage.setItem("userName", result.name);
+                localStorage.setItem("userFileName", result.fileName);
+                loadUserView();
+            } else {
+                msg.className = "error";
+                msg.innerText = result.message;
+            }
+        } catch (error) {
+            msg.className = "error";
+            msg.innerText = "로그인 처리 중 오류가 발생했습니다.";
+        }
+    }
+
+    // 마이페이지 로드 및 PDF 가져오기
+    async function loadUserView() {
+        const token = localStorage.getItem("userToken");
+        const name = localStorage.getItem("userName");
+        const fileName = localStorage.getItem("userFileName");
+
+        if (!token) {
+            showView("loginView");
+            return;
+        }
+
+        showView("userView");
+        document.getElementById("userInfo").innerText = `${name} 님 환영합니다.`;
+        const pdfArea = document.getElementById("pdfArea");
+        pdfArea.innerHTML = "문서를 불러오는 중입니다...";
+
+        try {
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "getPDF", token, fileName })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                pdfArea.innerHTML = `
+                    <p class="success">본인 확인이 완료되었습니다.</p>
+                    <a href="${result.downloadUrl}" class="download-btn" target="_blank">PDF 다운로드</a>
+                `;
+            } else {
+                pdfArea.innerHTML = `<p class="error">${result.message}</p>`;
+            }
+        } catch (error) {
+            pdfArea.innerHTML = "<p class='error'>문서를 가져오는 데 실패했습니다.</p>";
+        }
+    }
+
+    // 로그아웃
+    function handleLogout() {
+        localStorage.clear();
+        showView("loginView");
+    }
+
+    // 페이지 진입 시 자동 로그인 체크
+    window.onload = function() {
+        if (localStorage.getItem("userToken")) {
+            loadUserView();
+        }
+    };
+</script>
+
+</body>
+</html>
